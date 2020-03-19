@@ -26,7 +26,7 @@
 // uart
 #include "uart.h"
 
-const char *TAG;
+const char* TAG;
 
 #define DEBUG
 

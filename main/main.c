@@ -1,21 +1,28 @@
 #include "main.h"
 #include "link_wifi.h"
+#include "cJSON.h"
+#include <time.h>
 
 #define BUF_SIZE (256)
 static int bridge_sock = -1;
 
 const char *TAG = "UART_UDP_BRIDGE";
-const char *device_detail = "!#packaheType(A)::company(shiwei)::deviceType(multi)::ID(1)#!";
+int32_t confirm_key = 49107652;
+int32_t assigned_port;
+cJSON *device_detail;
+const u8_t selfID = 0;
+char *device_detail_char;
+
+int32_t random_seq;
 struct sockaddr_in serviceAddr;
 static xSemaphoreHandle count_semaphore;
 
-int  socket_init();
+int socket_init(uint16_t port);
 void find_service();
-int  wait_service();
+int wait_service();
 void main_loop();
-int  conform_service_s1(char *c, int len);
-int  conform_service_s2(char *c, int len);
-int  close_link();
+int32_t conform_service(char *c, int sc); // shake count
+int close_link();
 
 void udp2uart_task(void *parameters);
 void uart2udp_task(void *parameters);
@@ -23,8 +30,15 @@ void link_complete_callback(void *parameters);
 
 void app_main()
 {
+    // 生成本机信息json对象
+    device_detail = cJSON_CreateObject();
+    cJSON_AddNumberToObject(device_detail, "TYP", 1);
+    cJSON_AddStringToObject(device_detail, "COMPANY", "ShanghaiShiWei");
+    cJSON_AddNumberToObject(device_detail, "ID", 0);
+    cJSON_AddNumberToObject(device_detail, "KEY", confirm_key);
+
     ESP_ERROR_CHECK(nvs_flash_init());
-    ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
+    // ESP_LOGI(TAG, "// ESP_WIFI_MODE_STA");
     // init semaphore
     count_semaphore = xSemaphoreCreateCounting(2, 0);
 
@@ -36,42 +50,42 @@ void app_main()
     main_loop();
 }
 
-int socket_init()
+int socket_init(uint16_t port)
 {
     struct sockaddr_in destAddr;
     destAddr.sin_addr.s_addr = htonl(INADDR_ANY);
     destAddr.sin_family = AF_INET;
-    destAddr.sin_port = htons(10086);
+    destAddr.sin_port = htons(port);
 
     bridge_sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
     if (bridge_sock < 0)
     {
-        ESP_LOGE(TAG, "Unable to create socket: errno %d", errno);
+        // ESP_LOGE(TAG, "Unable to create socket: errno %d", errno);
         return 0;
     }
-    ESP_LOGI(TAG, "Socket created");
+    // ESP_LOGI(TAG, "Socket created");
 
     int err = bind(bridge_sock, (struct sockaddr *)&destAddr, sizeof(destAddr));
     if (err < 0)
     {
-        ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
+        // ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
     }
-    ESP_LOGI(TAG, "Socket binded");
-
-    return 1;
+    // ESP_LOGI(TAG, "Socket binded");
+    return bridge_sock;
 }
 
 void main_loop()
 {
-    char rx_buffer[128];
-    char addr_str[128];
+    int32_t seq;
+    char rx_buffer[256];
+    // char addr_str[128];
     static int status = 0;
     while (1)
     {
-        if(bridge_sock == -1)
+        if (bridge_sock == -1)
         {
-            while(!socket_init())
-                vTaskDelay(500/portTICK_RATE_MS);
+            while (!socket_init(10086))
+                vTaskDelay(500 / portTICK_RATE_MS);
         }
         while (1)
         {
@@ -80,73 +94,140 @@ void main_loop()
             int len = recvfrom(bridge_sock, rx_buffer, sizeof(rx_buffer) - 1, 0, (struct sockaddr *)&sourceAddr, &socklen);
             if (len < 0)
             {
-                ESP_LOGE(TAG, "recvfrom failed: errno %d", errno);
+                // ESP_LOGE(TAG, "recvfrom failed: errno %d", errno);
+            }
+            else if (len >= 255)
+            {// is full?
+                continue;
             }
             else
             {
                 if (status == 0)
                 {
-                    if (!conform_service_s1(rx_buffer, len))
+                    // process as a string
+                    rx_buffer[len] = 0;
+                    seq = conform_service(rx_buffer, status);
+                    ESP_LOGI(TAG,"R1:%s",rx_buffer);
+                    if (!seq)
                     {
                         continue;
                     }
                     // get the service address
                     serviceAddr = sourceAddr;
 
-                    // show service address
-                    inet_ntoa_r(((struct sockaddr_in *)&sourceAddr)->sin_addr.s_addr, addr_str, sizeof(addr_str) - 1);
-                    rx_buffer[len] = 0;
-                    ESP_LOGI(TAG, "Received The Link Require");
+                    // ESP_LOGI(TAG, "Received The Link Require");
 
-                     // send device ID
-                    int err = sendto(bridge_sock, device_detail, strlen(device_detail), 0, (struct sockaddr *)&sourceAddr, sizeof(sourceAddr));
+                    cJSON_AddNumberToObject(device_detail, "SEQ", seq + 1);
+                    device_detail_char = cJSON_Print(device_detail);
+
+                    int err = sendto(bridge_sock, device_detail_char, strlen(device_detail_char), 0, (struct sockaddr *)&sourceAddr, sizeof(sourceAddr));
+                    ESP_LOGI(TAG,"S:%s",device_detail_char);
+                    cJSON_DeleteItemFromObject(device_detail,"SEQ");
+                    free(device_detail_char);
                     if (err < 0)
                     {
-                        ESP_LOGE(TAG, "Error occured during sending: errno %d", errno);
+                        // ESP_LOGE(TAG, "Error occured during sending: errno %d", errno);
                         break;
                     }
-                    ESP_LOGI(TAG, "Sended ACK Waitting For Service Ack");
+                    // ESP_LOGI(TAG, "Sended ACK Waitting For Service Ack");
                     status = 1;
                     continue;
                 }
                 else if (status == 1)
                 {
-                    if (!conform_service_s2(rx_buffer, len) || sourceAddr.sin_addr.s_addr != serviceAddr.sin_addr.s_addr)
+                    // confirm address
+                    ESP_LOGI(TAG,"R2:%s",rx_buffer);
+                    seq = conform_service(rx_buffer, status);
+                    if (!seq || sourceAddr.sin_addr.s_addr != serviceAddr.sin_addr.s_addr)
                     {
                         status = 0;
                         continue;
                     }
-                    ESP_LOGI(TAG, "Received The ACK, Start Creating The Task");
+                    cJSON_AddNumberToObject(device_detail, "SEQ", seq + 1);
+                    device_detail_char = cJSON_Print(device_detail);
+
+                    int err = sendto(bridge_sock, device_detail_char, strlen(device_detail_char), 0, (struct sockaddr *)&sourceAddr, sizeof(sourceAddr));
+                    
+                    ESP_LOGI(TAG,"S:%s",device_detail_char);
+                    serviceAddr.sin_port = htons(assigned_port);
+                    cJSON_DeleteItemFromObject(device_detail,"SEQ");
+                    free(device_detail);
+                    if (err < 0)
+                    {
+                        // ESP_LOGE(TAG, "Error occured during sending: errno %d", errno);
+                        break;
+                    }
+
+
+                    ESP_LOGI(TAG,"rebuild socket communication");
                     // confirm complete, create tasks
-                    xTaskCreate(udp2uart_task,"udp2uart_task",2048,NULL,5,NULL);
-                    xTaskCreate(uart2udp_task,"uart2udp_task",2048,NULL,5,NULL);
+
+                    shutdown(bridge_sock, 0);
+                    close(bridge_sock);
+                    if(!socket_init(60001+selfID))
+                    {
+                        ESP_LOGI(TAG,"rebind the port");
+                        break;
+                    }
+
+                    xTaskCreate(udp2uart_task, "udp2uart_task", 2048, NULL, 5, NULL);
+                    xTaskCreate(uart2udp_task, "uart2udp_task", 2048, NULL, 5, NULL);
 
                     xSemaphoreTake(count_semaphore, portMAX_DELAY);
-                    xSemaphoreTake(count_semaphore, portMAX_DELAY); 
-                    ESP_LOGI(TAG, "ERROR Occurred Durning The TASKS");
+                    xSemaphoreTake(count_semaphore, portMAX_DELAY);
+                    // ESP_LOGI(TAG, "ERROR Occurred Durning The TASKS");
                     status = 0;
                 }
             }
         }
         if (bridge_sock != -1)
         {
-            ESP_LOGE(TAG, "Shutting down socket and restarting...");
+            // ESP_LOGE(TAG, "Shutting down socket and restarting...");
             shutdown(bridge_sock, 0);
             close(bridge_sock);
         }
     }
 }
 
-// TODO
-int conform_service_s1(char *c, int len)
+/*
+    message format:
+    TYP
+    SEQ
+    KEY
+*/
+int32_t conform_service(char *c, int sc)
 {
-    return 1;
-}
+    static int32_t seq;
+    cJSON *input = cJSON_Parse((const char *)c);
 
-// TODO
-int conform_service_s2(char *c, int len)
-{
-    return 1;
+    if(!input) return 0;
+    if(!cJSON_HasObjectItem(input, "TYP")) return 0;
+    if(!cJSON_HasObjectItem(input, "SEQ")) return 0;
+    if(!cJSON_HasObjectItem(input, "KEY")) return 0;
+    
+    ESP_LOGI(TAG,"FLAG");
+    int32_t TYP = cJSON_GetObjectItem(input, "TYP")->valueint;
+    int32_t SEQ = cJSON_GetObjectItem(input, "SEQ")->valueint;
+    int32_t KEY = cJSON_GetObjectItem(input, "KEY")->valueint;
+    cJSON_Delete(input);
+    switch (sc)
+    {
+    case 0:
+        if (TYP == 0 && KEY==confirm_key)
+        {
+            ESP_LOGI(TAG,"FLAG2");
+            seq = SEQ;
+            return SEQ;
+        }
+    case 1:
+        if (TYP == 0 && SEQ == seq + 2 && KEY == confirm_key)
+        {
+            if(!cJSON_HasObjectItem(input, "PORT")) return 0;
+            else assigned_port = cJSON_GetObjectItem(input,"PORT")->valueint;
+            return SEQ;
+        }
+    }
+    return 0;
 }
 
 void udp2uart_task(void *parameters)
@@ -170,7 +251,7 @@ void udp2uart_task(void *parameters)
             {
                 break;
             }
-            if(tempAddr.sin_addr.s_addr != serviceAddr.sin_addr.s_addr)
+            if (tempAddr.sin_addr.s_addr != serviceAddr.sin_addr.s_addr)
             {
                 continue;
             }
