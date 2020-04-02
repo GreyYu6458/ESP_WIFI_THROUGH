@@ -1,2 +1,19 @@
-idf_component_register(SRCS "main.c" "link_wifi.c" "uart.c"
-                       INCLUDE_DIRS ".")
+idf_component_register(SRCS 
+"./main.c"
+"./SOCKET/UDP/udp_init.c"
+"./UART/uart_send.c"
+"./UART/uart_init.c"
+"./UART/uart_rec.c"
+"./WIFI/link_wifi.c"
+"./CONFORM/conform_event.c"
+"./CONFORM/conform.c"
+INCLUDE_DIRS 
+"."
+"./SOCKET"
+"./SOCKET/TCP"
+"./SOCKET/UDP"
+"./UART"
+"./WIFI"
+"./CONFORM"
+"./MSG"
+)

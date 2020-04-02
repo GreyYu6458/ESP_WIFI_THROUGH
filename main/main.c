@@ -1,52 +1,86 @@
 #include "main.h"
 #include "link_wifi.h"
-#include "cJSON.h"
 #include <time.h>
 
-#define BUF_SIZE (64)
+/* 自身ID */
+static const u8_t   selfID = 0;
+/* 本机描述信息 */
+char*               device_detail_char;
+/* 被扫描用socket */
+static int          scan_socket = -1;
+/* uart2udp bridge 用socket */
+static int          bridge_socket = -1;
+/* 调试用 */
+const char*         TAG = "UART_UDP_BRIDGE";
+/* 链接的密钥 */
+const int32_t       confirm_key = 49107652;
+/* 分配的端口 */
+int32_t             assigned_port;
+/* 本机描述JSON */
+cJSON*              device_detail;
+/* 通讯用随机序列 */
+int32_t             random_seq;
+/* 服务器地址，在第一次被扫描时初始化 */
+struct sockaddr_in  serviceAddr;
+/* 桥初始化互斥量 */
+static xSemaphoreHandle     bridge_socket_mutex;
+static xSemaphoreHandle     mission_count_semaphore;
 
-const char *TAG = "UART_UDP_BRIDGE";
-int32_t confirm_key = 49107652;
-int32_t assigned_port;
-cJSON *device_detail;
-const u8_t selfID = 0;
-char *device_detail_char;
+/* UDP 互斥量 */
+static xSemaphoreHandle     UDP_send_mutex;
 
-int32_t random_seq;
-struct sockaddr_in serviceAddr;
-static xSemaphoreHandle bridge_socket_mutex;
-static xSemaphoreHandle mission_count_semaphore;
+/* 用于异步传输的队列 */
+static xQueueHandle         udp2uart_queue_handle;
+static xQueueHandle         uart2udp_queue_handle;
 
+/* 套接字信号量 */
 int socket_init(uint16_t port);
 
-int32_t conform_service(char *c, int sc); // shake count
-
-static int scan_socket = -1 ,bridge_socket = -1;
+/* 扫描回复任务 */
 void scan_task(void *parameters);
-void udp2uart_task(void *parameters);
-void uart2udp_task(void *parameters);
 
+/* 接收任务 */
+void udp_recv_task(void* parameters);
+void uart_recv_task(void* parameters);
+
+/* 发送任务 */
+void uart_send_task(void* parameter);
+void udp_send_task(void* parameter);
+
+/* udp2uart任务 */
+void udp2uart_task(void *parameters);
+
+/* uart2udp任务 */
+void uart2udp_task(void *parameters);
 
 void app_main()
 {
-    // 生成本机信息json对象
+    conform_event_init(on_con_1, on_con_2, on_fai);
+
+    /* 生成本机信息json对象 */
     device_detail = cJSON_CreateObject();
     cJSON_AddNumberToObject(device_detail, "TYP", 1);
     cJSON_AddStringToObject(device_detail, "COMPANY", "ShanghaiShiWei");
     cJSON_AddNumberToObject(device_detail, "ID", 0);
     cJSON_AddNumberToObject(device_detail, "KEY", confirm_key);
+    cJSON_AddNumberToObject(device_detail, "SEQ",0);
 
+    /* 初始化队列 */
+    uart2udp_queue_handle = xQueueCreate(10, sizeof(inner_data*));
+    udp2uart_queue_handle = xQueueCreate(10, sizeof(inner_data*));
+
+    /* 检测flash是否运行正常 */
     ESP_ERROR_CHECK(nvs_flash_init());
-    // init semaphore
+    
+    /* 初始化信号量 */
     bridge_socket_mutex     = xSemaphoreCreateMutex();
+    UDP_send_mutex          = xSemaphoreCreateMutex();
     mission_count_semaphore = xSemaphoreCreateCounting(2,0);
 
-    // [block] link to the wifi
+    /* 连接到wifi */
     wifi_init_sta();
 
-    // 服务器地址默认指向网关
-
-
+    /* 初始化串口 */
     uart0_init();
     // task will creat in the mainloop
     if (scan_socket == -1)
@@ -83,10 +117,11 @@ int socket_init(uint16_t port)
     return sock;
 }
 
+#define _SCAN_TASK_BUFF_SIZE (300)
 void scan_task(void *parameters)
 {
     int32_t seq;
-    char rx_buffer[256];
+    char rx_buffer[_SCAN_TASK_BUFF_SIZE];
     // char addr_str[128];
     static int status = 0;
     while (1)
@@ -98,7 +133,6 @@ void scan_task(void *parameters)
         }
         while (1)
         {
-
             struct sockaddr_in sourceAddr;
             socklen_t socklen = sizeof(sourceAddr);
             int len = recvfrom(scan_socket, rx_buffer, sizeof(rx_buffer) - 1, 0, 
@@ -107,7 +141,7 @@ void scan_task(void *parameters)
             // {
             //     // ESP_LOGE(TAG, "recvfrom failed: errno %d", errno);
             // }
-            if (len >= 255)
+            if (len >= _SCAN_TASK_BUFF_SIZE - 1)
             {// is full?
                 continue;
             }
@@ -117,20 +151,18 @@ void scan_task(void *parameters)
                 {
                     // process as a string
                     rx_buffer[len] = 0;
-                    seq = conform_service(rx_buffer, status);
+                    conform_service(rx_buffer, status);
                     if (!seq)
                     {
                         continue;
                     }
                     // get the service address
                     serviceAddr = sourceAddr;
-
-                    cJSON_AddNumberToObject(device_detail, "SEQ", seq + 1);
+                    cJSON_ReplaceItemInObject(device_detail, "SEQ", cJSON_CreateNumber(seq + 1));
                     device_detail_char = cJSON_Print(device_detail);
-
+                    ESP_LOGI("%s",device_detail_char);
                     int err = sendto(scan_socket, device_detail_char, strlen(device_detail_char), 0, 
-                                           (struct sockaddr *)&sourceAddr, sizeof(sourceAddr));
-                    cJSON_DeleteItemFromObject(device_detail,"SEQ");
+                                    (struct sockaddr *)&sourceAddr, sizeof(sourceAddr));
                     free(device_detail_char);
                     if (err < 0)
                     {
@@ -142,7 +174,7 @@ void scan_task(void *parameters)
                 else if (status == 1)
                 {
                     // confirm address
-                    seq = conform_service(rx_buffer, status);
+                    conform_service(rx_buffer, status);
                     if (!seq || sourceAddr.sin_addr.s_addr != serviceAddr.sin_addr.s_addr)
                     {
                         status = 0;
@@ -151,14 +183,11 @@ void scan_task(void *parameters)
                     
                     serviceAddr.sin_port = htons(assigned_port);
 
-                    cJSON_AddNumberToObject(device_detail, "SEQ", seq + 1);
+                    cJSON_ReplaceItemInObject(device_detail, "SEQ", cJSON_CreateNumber(seq + 1));
                     device_detail_char = cJSON_Print(device_detail);
-
+                    ESP_LOGI("%s",device_detail_char);
                     int err = sendto(scan_socket, device_detail_char, strlen(device_detail_char), 0, 
                                             (struct sockaddr *)&sourceAddr, sizeof(sourceAddr));
-                    
-                    
-                    cJSON_DeleteItemFromObject(device_detail,"SEQ");
                     free(device_detail_char);
                     if (err < 0)
                     {
@@ -180,48 +209,12 @@ void scan_task(void *parameters)
     }
 }
 
-/*
-    message format:
-    TYP
-    SEQ
-    KEY
-*/
-int32_t conform_service(char *c, int sc)
-{
-    static int32_t seq;
-    cJSON *input = cJSON_Parse((const char *)c);
 
-    if(!input) return 0;
-    if(!cJSON_HasObjectItem(input, "TYP")) return 0;
-    if(!cJSON_HasObjectItem(input, "SEQ")) return 0;
-    if(!cJSON_HasObjectItem(input, "KEY")) return 0;
-    
-    int32_t TYP = cJSON_GetObjectItem(input, "TYP")->valueint;
-    int32_t SEQ = cJSON_GetObjectItem(input, "SEQ")->valueint;
-    int32_t KEY = cJSON_GetObjectItem(input, "KEY")->valueint;
-    cJSON_Delete(input);
-    switch (sc)
-    {
-    case 0:
-        if (TYP == 0 && KEY==confirm_key)
-        {
-            seq = SEQ;
-            return SEQ;
-        }
-    case 1:
-        if (TYP == 0 && SEQ == seq + 2 && KEY == confirm_key)
-        {
-            if(!cJSON_HasObjectItem(input, "PORT")) return 0;
-            else assigned_port = cJSON_GetObjectItem(input,"PORT")->valueint;
-            return SEQ;
-        }
-    }
-    return 0;
-}
 
+#define _BRIDGE_UDP_BUFF_SIZE (128)
 void udp2uart_task(void *parameters)
 {
-    char rx_buffer[256];
+    char rx_buffer[_BRIDGE_UDP_BUFF_SIZE];
     // 发送方地址会暂时存在这
     struct sockaddr_in tempAddr;
     socklen_t socklen = sizeof(tempAddr);
@@ -257,6 +250,7 @@ void udp2uart_task(void *parameters)
     vTaskDelete(NULL);
 }
 
+#define BUF_SIZE (64)
 void uart2udp_task(void *parameters)
 {
     uint8_t *data = (uint8_t *)malloc(BUF_SIZE);
@@ -296,3 +290,42 @@ void uart2udp_task(void *parameters)
     free(data);
     vTaskDelete(NULL);
 }
+
+void udp_recv_task(void* parameters)
+{
+    char rx_buffer[256];
+    // 发送方地址会暂时存在这
+    struct sockaddr_in tempAddr;
+    socklen_t socklen = sizeof(tempAddr);
+    while (1)
+    {
+        xSemaphoreTake(bridge_socket_mutex, portMAX_DELAY);
+        if (bridge_socket == -1)
+        {
+            while (!(bridge_socket = socket_init(60001 + selfID)))
+            vTaskDelay(500 / portTICK_RATE_MS);
+        }
+        xSemaphoreGive(bridge_socket_mutex);
+        xSemaphoreTake(mission_count_semaphore,portMAX_DELAY);
+        while (1)
+        {
+            int len = recvfrom(bridge_socket, rx_buffer, sizeof(rx_buffer) - 1, 0, (struct sockaddr *)&tempAddr, &socklen);
+            // 接收出错
+            if (len < 0)
+            {
+                break;
+            }
+            // 收到UDP数据,转发数据
+            uart_write_bytes(UART_NUM_0, rx_buffer, len);
+        }
+        if (bridge_socket != -1)
+        {
+            shutdown(bridge_socket, 0);
+            close(bridge_socket);
+            bridge_socket = -1;
+        }
+        xSemaphoreGive(mission_count_semaphore);
+    }
+    vTaskDelete(NULL);
+}
+

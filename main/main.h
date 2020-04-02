@@ -23,10 +23,38 @@
 #include "lwip/sys.h"
 #include "lwip/sockets.h"
 
+//cjson
+#include "cJSON.h"
+
 // uart
-#include "uart.h"
+#include "uart_init.h"
+
+// queue
+#include "queue.h"
+
+// self header
+#include "conform.h"
+#include "conform_event.h"
+
+/* 链接的密钥 */
+extern const int32_t confirm_key;
+
+extern const char* TAG;
+
+/* 分配的端口 */
+extern int32_t assigned_port;
+
+/* 服务器地址，在第一次被扫描时初始化 */
+extern struct sockaddr_in serviceAddr;
 
 const char* TAG;
+typedef struct
+{
+    size_t len;
+    char* data;
+}inner_data;
+
+
 
 #define DEBUG
 
