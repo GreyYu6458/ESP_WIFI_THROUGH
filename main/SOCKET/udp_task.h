@@ -18,8 +18,7 @@ typedef struct UDPObject
     xTaskHandle send_task_handle;
 
     void (*rec_task_start)(UDPObject* this);
-    void (*write)(const transport_data *data, UDPObject* this);
-    void (*send)(const transport_data* data, UDPObject* this);
+    void (*send)(const indefiniteData* data, UDPObject* this);
     void (*rec_callback)(void* data, struct sockaddr_in* sourceAddr,UDPObject* this);
 }UDPObject;
 

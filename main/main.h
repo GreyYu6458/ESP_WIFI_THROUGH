@@ -35,10 +35,10 @@
 
 // self header
 #include "config.h"
+#include "self_detail_json.h"
 #include "socket_init.h"
 #include "udp_task.h"
 #include "conform.h"
-#include "conform_event.h"
 
 /* 分配的端口 */
 extern int32_t assigned_port;

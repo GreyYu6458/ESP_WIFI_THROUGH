@@ -21,8 +21,8 @@ xQueueHandle uart_rec_queue;
 xQueueHandle uart_send_queue;
 
 void (*rec_task_start)(UARTObject* this);
-inline void (*write)(const transport_data* data, UARTObject* this);
-inline void (*send)(const transport_data* data, UARTObject* this);
+inline void (*write)(const indefiniteData* data, UARTObject* this);
+inline void (*send)(const indefiniteData* data, UARTObject* this);
 inline void (*rec_callback)(void* data, UARTObject* this);
 
 }UARTObject;

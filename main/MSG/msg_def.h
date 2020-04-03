@@ -5,6 +5,6 @@ typedef struct
 {
     size_t len;
     char* data;
-}transport_data;
+}indefiniteData;
 
 #endif

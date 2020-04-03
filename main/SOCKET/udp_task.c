@@ -5,9 +5,9 @@
 // out_queue的长度
 #define _OQ_LEN (10)
 // in 传输数据类型的大小
-#define _ITD_SIZE sizeof(transport_data)
+#define _ITD_SIZE sizeof(indefiniteData)
 // in 传输数据类型的大小
-#define _OTD_SIZE sizeof(transport_data)
+#define _OTD_SIZE sizeof(indefiniteData)
 // UDP RECVICE BUFF SIZE
 #define _UDP_RECVICE_BUFF_SIZE (300)
 
@@ -17,9 +17,9 @@ static void udp_task_start(UDPObject *this);
 static void udp_rec_task(void *parameter);
 static void udp_send_task(void *parameter);
 
-static void UDPObject_udp_send(const transport_data *data, UDPObject *this);
+static void UDPObject_udp_send(const indefiniteData *data, UDPObject *this);
 static void UDPObject_default_rec_callback(void *data, struct sockaddr_in *sourceAddr, UDPObject *this);
-static void UDPObject_send(const transport_data *data, struct sockaddr *to, UDPObject *this);
+static void UDPObject_send(const indefiniteData *data, struct sockaddr *to, UDPObject *this);
 
 UDPObject *UDPObject_Consturct(int s, const char *task_name, struct sockaddr *to)
 {
@@ -51,7 +51,7 @@ UDPObject *UDPObject_Consturct(int s, const char *task_name, struct sockaddr *to
 }
 
 /* 发送函数 */
-static inline void UDPObject_udp_send(const transport_data *data, UDPObject *this)
+static inline void UDPObject_udp_send(const indefiniteData *data, UDPObject *this)
 {
     xQueueSend(this->udp_send_queue, data, 0);
 }
@@ -78,11 +78,11 @@ static void udp_rec_task(void *parameter)
         { // is full?
             continue;
         }
-        transport_data data ={.len = len,.data = rx_buffer};
+        object->to = &sourceAddr;
+        indefiniteData data ={.len = len,.data = rx_buffer};
         object->rec_callback((void *)&data, &sourceAddr, object); // 重写这个函数
         
         // 不要在此释放内存，考虑到rec_callback可能是异步
-        // free(rx_buffer);
     }
     vTaskDelete(NULL);
 }
@@ -91,7 +91,7 @@ static void udp_send_task(void *parameter)
 {
     UDPObject *object = (UDPObject *)parameter;
     BaseType_t is_success;
-    transport_data buffer;
+    indefiniteData buffer;
     while (1)
     {
         is_success = xQueueReceive(object->udp_send_queue, &buffer, 5 / portTICK_RATE_MS);

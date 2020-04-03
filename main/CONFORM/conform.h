@@ -2,7 +2,6 @@
 #define _CONFORM_H_
 #include "main.h"
 #include "msg_def.h"
-#include "conform_event.h"
 
 enum conform_status
 {
@@ -11,6 +10,22 @@ enum conform_status
     LINKING
 };
 
-extern void udp_conform_callback(void* data, struct sockaddr_in* sourceAddr,UDPObject* this);
+typedef struct 
+{
+    AuthenticateTask* this;
+    UDPObject* udp_adapter;
+    
+    void (*authenticate_start)(AuthenticateTask* this);
+}AuthenticateTask;
+
+
+/*
+* @brief            服务器验证类
+* @param adapter    目标设备地址信息
+*/
+extern AuthenticateTask* AuthenticateTask_Consturct(UDPObject* adapter);
+
+
+extern void send_device_detail(UDPObject* udpObject);
 
 #endif
