@@ -3,8 +3,9 @@
 #include "main.h"
 #include "conform.h"
 
-extern void on_con_1(void* result);
-extern void on_con_2(void* result);
-extern void on_fai(void* result);
+extern char on_con_1(void* result, struct sockaddr_in* sourceAddr);
+extern char on_con_2(void* result, struct sockaddr_in* sourceAddr);
+extern char on_linking(void* result, struct sockaddr_in* sourceAddr);
+extern char on_fai(void* result, struct sockaddr_in* sourceAddr);
 
 #endif

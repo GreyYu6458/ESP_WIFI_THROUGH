@@ -10,10 +10,6 @@ char*               device_detail_char;
 static int          scan_socket = -1;
 /* uart2udp bridge 用socket */
 static int          bridge_socket = -1;
-/* 调试用 */
-const char*         TAG = "UART_UDP_BRIDGE";
-/* 链接的密钥 */
-const int32_t       confirm_key = 49107652;
 /* 分配的端口 */
 int32_t             assigned_port;
 /* 本机描述JSON */
@@ -32,9 +28,6 @@ static xSemaphoreHandle     UDP_send_mutex;
 /* 用于异步传输的队列 */
 static xQueueHandle         udp2uart_queue_handle;
 static xQueueHandle         uart2udp_queue_handle;
-
-/* 套接字信号量 */
-int socket_init(uint16_t port);
 
 /* 扫描回复任务 */
 void scan_task(void *parameters);
@@ -63,7 +56,6 @@ void app_main()
     cJSON_AddStringToObject(device_detail, "COMPANY", "ShanghaiShiWei");
     cJSON_AddNumberToObject(device_detail, "ID", 0);
     cJSON_AddNumberToObject(device_detail, "KEY", confirm_key);
-    cJSON_AddNumberToObject(device_detail, "SEQ",0);
 
     /* 检测flash是否运行正常 */
     ESP_ERROR_CHECK(nvs_flash_init());
@@ -93,24 +85,6 @@ void app_main()
     xTaskCreate(udp2uart_task,  "udp2uart_task",    2048, (void*)NULL, 5, NULL);
     xTaskCreate(uart2udp_task,  "uart2udp_task",    2048, (void*)NULL, 5, NULL);
     xTaskCreate(scan_task,      "scan_task",        2048, (void*)NULL, 4, NULL);
-}
-
-int socket_init(uint16_t port)
-{
-    struct sockaddr_in destAddr;
-    destAddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    destAddr.sin_family = AF_INET;
-    destAddr.sin_port = htons(port);
-
-    int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
-    if (sock < 0)
-    {
-        return 0;
-    }
-
-    int err = bind(sock, (struct sockaddr *)&destAddr, sizeof(destAddr));
-
-    return sock;
 }
 
 #define _SCAN_TASK_BUFF_SIZE (300)

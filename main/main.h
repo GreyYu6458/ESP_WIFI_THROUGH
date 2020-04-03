@@ -27,33 +27,24 @@
 #include "cJSON.h"
 
 // uart
-#include "uart_init.h"
+#include "uart_task.h"
+#include "udp_task.h"
 
 // queue
 #include "queue.h"
 
 // self header
+#include "config.h"
+#include "socket_init.h"
+#include "udp_task.h"
 #include "conform.h"
 #include "conform_event.h"
-
-/* 链接的密钥 */
-extern const int32_t confirm_key;
-
-extern const char* TAG;
 
 /* 分配的端口 */
 extern int32_t assigned_port;
 
 /* 服务器地址，在第一次被扫描时初始化 */
 extern struct sockaddr_in serviceAddr;
-
-const char* TAG;
-typedef struct
-{
-    size_t len;
-    char* data;
-}inner_data;
-
 
 
 #define DEBUG

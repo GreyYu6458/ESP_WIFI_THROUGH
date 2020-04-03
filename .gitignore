@@ -1,2 +1,7 @@
 .vscode
 build
+sdkconfig
+sdkconfig.old
+main/CMakeLists_b.txt
+CMakeLists_b.txt
+.Makefile.swp
