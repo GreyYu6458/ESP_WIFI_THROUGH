@@ -65,10 +65,6 @@ void app_main()
     cJSON_AddNumberToObject(device_detail, "KEY", confirm_key);
     cJSON_AddNumberToObject(device_detail, "SEQ",0);
 
-    /* 初始化队列 */
-    uart2udp_queue_handle = xQueueCreate(10, sizeof(inner_data*));
-    udp2uart_queue_handle = xQueueCreate(10, sizeof(inner_data*));
-
     /* 检测flash是否运行正常 */
     ESP_ERROR_CHECK(nvs_flash_init());
     
