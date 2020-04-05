@@ -10,7 +10,7 @@
 #include "memory_pool.h"
 
 
-typedef struct AuthenticateTask_t
+typedef struct xAuthenticateTask_t
 {
     xUDPTaskHandle udp_adapter;
 }xAuthenticateTask_t;
