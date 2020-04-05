@@ -5,29 +5,34 @@
 #include "freertos/event_groups.h"
 #include "msg_def.h"
 #include "memory_pool.h"
-#include "driver/uart.h"
+#include "uart_init.h"
 
-typedef struct UARTObject
+typedef struct xUARTTask_t
 {
-    struct UARTObject* this;
+    int unum;
+    
     char rec_task_name[15];
     char send_task_name[15];
-    int huart;
-    
-    memory_pool* mpool;
+
     xQueueHandle rec_queue;
     xQueueHandle send_queue;
     xTaskHandle rec_task_handle;
     xTaskHandle send_task_handle;
-    
-    void (*rec_task_start)(struct UARTObject* this);
-    void (*send)(const indefiniteData* data, struct UARTObject* this);
-    void (*rec_callback)(void* data, struct UARTObject* this);
+    UBaseType_t uxPriority;
+    void (*RecCallback)(struct xUARTTask_t *, void *);
 
-}UARTObject;
+    xMemoryPoolHandle xMPool;
+} xUARTTask_t;
+typedef xUARTTask_t *xUARTTaskHandle;
+typedef void (*xUARTRecCallBack_t)(xUARTTaskHandle, void *);
 
-extern UARTObject* UARTObject_Construct(uart_port_t u, uart_config_t uart_config, memory_pool* mpool);
+extern xUARTTaskHandle xUARTTaskCreate(uart_port_t p, int16_t inQueueSize, int16_t outQueueSize, 
+                                       UBaseType_t uxPriority, xMemoryPoolHandle xMPool);
 
-extern void UARTObject_Delete(UARTObject* ob);
+extern void xUARTTaskStart(xUARTTaskHandle xUARTTask);
+
+extern void xUARTTaskSend(xUARTTaskHandle xUARTTask, const xMemoryBlockHandle xMB);
+
+extern void xUARTTaskSetRecCallback(xUARTTaskHandle xUARTTask, xUARTRecCallBack_t xUARTRCb);
 
 #endif
