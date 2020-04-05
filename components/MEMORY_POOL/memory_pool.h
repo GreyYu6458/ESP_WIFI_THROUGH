@@ -5,34 +5,6 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "queue.h"
-// #include "semphr.h"
-
-typedef struct memory_block
-{
-    int16_t size;
-    indefiniteData* memory;
-    struct memory_block* next;
-    struct memory_block* prev;
-}memory_block;
-
-typedef struct memory_pool
-{
-    int16_t size;
-    memory_block* free_block;
-    memory_block* used_block;
-}memory_pool;
-
-/* 初始化内存块 */
-extern memory_pool* memory_pool_init(int16_t block_size, int16_t block_number);
-
-/* 释放掉内存池 */
-extern void memory_pool_free(memory_pool* mpool);
-
-/* 获取内存块 */
-extern memory_block* get_memory_block(memory_pool* mpool);
-
-/* ‘释放’掉内存块 */
-extern void release_memory_block(memory_pool *mpool, memory_block* block);
 
 /************************************ 使用freeRTOS实现内存池 ************************************/
 typedef struct
@@ -55,7 +27,7 @@ extern xMemoryPoolHandle xMemoryPoolCreate(int16_t block_number, int16_t block_s
 
 extern void xMemoryPoolDelete(xMemoryPoolHandle xMemoryPool);
 
-extern xMemoryBlockHandle xMemoryBlockGet(xMemoryPoolHandle xMemoryPool);
+extern xMemoryBlockHandle xMemoryBlockGet(xMemoryPoolHandle xMemoryPool, TickType_t xTicksToWait);
 
 extern BaseType_t xMemoryBlockRelease(xMemoryPoolHandle xMemoryPool, xMemoryBlockHandle xMemoryBlock);
 
