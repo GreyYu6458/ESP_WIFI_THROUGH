@@ -1,0 +1,7 @@
+set(COMPONENT_ADD_INCLUDEDIRS .)
+
+set(COMPONENT_SRCS "conform.c")
+
+set(COMPONENT_REQUIRES CONFIG SOCKET DETAIL MSG json MEMORY_POOL)
+
+register_component()

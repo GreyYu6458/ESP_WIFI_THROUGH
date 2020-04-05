@@ -18,33 +18,17 @@
 #include "nvs.h"
 #include "nvs_flash.h"
 
-// lwip api
-#include "lwip/err.h"
-#include "lwip/sys.h"
-#include "lwip/sockets.h"
-
-//cjson
-#include "cJSON.h"
-
-// uart
-#include "uart_task.h"
-#include "udp_task.h"
-
 // queue
 #include "queue.h"
 
 // self header
 #include "config.h"
+#include "uart_task.h"
+#include "udp_task.h"
 #include "self_detail_json.h"
 #include "socket_init.h"
-#include "udp_task.h"
+#include "memory_pool.h"
 #include "conform.h"
-
-/* 分配的端口 */
-extern int32_t assigned_port;
-
-/* 服务器地址，在第一次被扫描时初始化 */
-extern struct sockaddr_in serviceAddr;
 
 
 #define DEBUG

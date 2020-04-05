@@ -3,10 +3,11 @@
 #include "esp_event.h"
 #include "freertos/event_groups.h"
 #include "esp_wifi.h"
-#include "main.h"
+#include "esp_log.h"
+#include "config.h"
 
-#define WIFI_SSID               "Xiaomi_56A8"
-#define WIFI_PASS               "1sky-shanghai"
+#define WIFI_SSID               "ChinaNet-zjTU"
+#define WIFI_PASS               "6sypkrgr"
 #define MAXIMUM_RETRY           5
 
 /* The event group allows multiple bits for each event, but we only care about two events:

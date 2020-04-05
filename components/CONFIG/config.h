@@ -1,13 +1,14 @@
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
+#include "stdint.h"
 
 /* 链接的密钥 */
-const int32_t secret_key = 49107652;
+extern const int32_t secret_key;
 
 /* 调试标签 */
-const char* TAG = "UART_UDP_BRIDGE";
+extern const char* TAG;
 
 /* 本机ID */
-const char selfID = 0;
+extern const char selfID;
 
 #endif

@@ -11,6 +11,6 @@ int socket_init(uint16_t port)
     {
         return 0;
     }
-    int err = bind(sock, (struct sockaddr *)&destAddr, sizeof(destAddr));
+    bind(sock, (struct sockaddr *)&destAddr, sizeof(destAddr));
     return sock;
 }

@@ -1,18 +1,4 @@
-idf_component_register(SRCS 
-	"./self_detail_json.c"
-	"./main.c"
-	"./bridge.c"
-	"./SOCKET/socket_init.c"
-	"./SOCKET/udp_task.c"
-	"./UART/uart_task.c"
-	"./WIFI/link_wifi.c"
-	"./CONFORM/conform.c"
-	"./MSG/msg_def.c"
-INCLUDE_DIRS 
-	"."
-	"./SOCKET"
-	"./UART"
-	"./WIFI"
-	"./CONFORM"
-	"./MSG"
-)
+set(COMPONENT_SRCS "main.c")
+set(COMPONENT_ADD_INCLUDEDIRS ".")
+
+register_component()

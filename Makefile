@@ -3,7 +3,7 @@
 # project subdirectory.
 #
 
-PROJECT_NAME := UART_UDP_BRIDGE
+PROJECT_NAME := UDP2UART_BRIDGE
 
 include $(IDF_PATH)/make/project.mk
 
