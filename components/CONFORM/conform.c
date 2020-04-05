@@ -14,7 +14,7 @@ xAuthenticateTaskHandle xAuthenticateTaskCreate(xUDPTaskHandle adapter)
 {
     xAuthenticateTaskHandle newObject = (xAuthenticateTaskHandle)malloc(sizeof(xAuthenticateTask_t));
     newObject->udp_adapter = adapter;
-    newObject->udp_adapter->xUDPRecCallback = udp_conform_callback;
+    newObject->udp_adapter->RecCallback = udp_conform_callback;
     return newObject;
 }
 
