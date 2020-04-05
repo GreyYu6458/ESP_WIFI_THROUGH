@@ -18,14 +18,12 @@
 #include "nvs.h"
 #include "nvs_flash.h"
 
-// queue
-#include "queue.h"
-
 // self header
 #include "config.h"
 #include "uart_task.h"
 #include "udp_task.h"
 #include "self_detail_json.h"
+#include "uart_init.h"
 #include "socket_init.h"
 #include "memory_pool.h"
 #include "conform.h"
