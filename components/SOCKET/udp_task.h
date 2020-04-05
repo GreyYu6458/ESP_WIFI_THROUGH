@@ -20,12 +20,12 @@ typedef struct xUDPTask_t
     char rec_task_name[15];
     char send_task_name[15];
 
-    xQueueHandle udp_rec_queue;
-    xQueueHandle udp_send_queue;
+    xQueueHandle rec_queue;
+    xQueueHandle send_queue;
     xTaskHandle rec_task_handle;
     xTaskHandle send_task_handle;
     UBaseType_t uxPriority;
-    void (*xUDPRecCallback)(struct xUDPTask_t *, void *, struct sockaddr_in *);
+    void (*RecCallback)(struct xUDPTask_t *, void *, struct sockaddr_in *);
 
     xMemoryPoolHandle xMPool;
 } xUDPTask_t;
