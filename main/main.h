@@ -23,6 +23,7 @@
 #include "uart_task.h"
 #include "udp_task.h"
 #include "self_detail_json.h"
+#include "bridge.h"
 #include "uart_init.h"
 #include "socket_init.h"
 #include "memory_pool.h"

@@ -3,6 +3,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
+#include "semphr.h"
 #include "msg_def.h"
 #include "udp_task.h"
 #include "self_detail_json.h"
@@ -24,4 +25,6 @@ extern xAuthenticateTaskHandle xAuthenticateTaskCreate(xUDPTaskHandle adapter);
 
 extern void xAuthenticateTaskStart(xAuthenticateTaskHandle xAuthenticateTask);
 
+extern xSemaphoreHandle bridgeMutex;
+extern struct sockaddr_in serviceAddr;
 #endif

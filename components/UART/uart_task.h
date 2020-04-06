@@ -16,15 +16,15 @@ typedef struct xUARTTask_t
 
     xQueueHandle rec_queue;
     xQueueHandle send_queue;
-    xTaskHandle rec_task_handle;
-    xTaskHandle send_task_handle;
+    BaseType_t rec_task_handle;
+    BaseType_t send_task_handle;
     UBaseType_t uxPriority;
-    void (*RecCallback)(struct xUARTTask_t *, void *);
-
+    void (*RecCallback)(struct xUARTTask_t *, void *, void*);
+    void* friend;
     xMemoryPoolHandle xMPool;
 } xUARTTask_t;
 typedef xUARTTask_t *xUARTTaskHandle;
-typedef void (*xUARTRecCallBack_t)(xUARTTaskHandle, void *);
+typedef void (*xUARTRecCallBack_t)(xUARTTaskHandle, void *, void*);
 
 extern xUARTTaskHandle xUARTTaskCreate(uart_port_t p, int16_t inQueueSize, int16_t outQueueSize, 
                                        UBaseType_t uxPriority, xMemoryPoolHandle xMPool);
@@ -35,4 +35,5 @@ extern void xUARTTaskSend(xUARTTaskHandle xUARTTask, const xMemoryBlockHandle xM
 
 extern void xUARTTaskSetRecCallback(xUARTTaskHandle xUARTTask, xUARTRecCallBack_t xUARTRCb);
 
+extern void xUARTTaskSetFriend(xUARTTaskHandle xUARTTask, void* friend);
 #endif

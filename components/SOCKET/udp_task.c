@@ -2,9 +2,9 @@
 
 static void udp_rec_task(void *parameter);
 static void udp_send_task(void *parameter);
-static void xUDPRecCallBack(xUDPTaskHandle xUDPTask, void *data, struct sockaddr_in *to);
+static void xUDPRecCallBack(xUDPTaskHandle xUDPTask, void *data, void *to);
 
-xUDPTaskHandle xUDPTaskCreate(int sock, struct sockaddr *to, int16_t inQueueSize,
+xUDPTaskHandle xUDPTaskCreate(int sock, struct sockaddr_in *to, int16_t inQueueSize,
                               int16_t outQueueSize, UBaseType_t uxPriority, xMemoryPoolHandle xMPool)
 {
     // 开辟空间
@@ -20,8 +20,15 @@ xUDPTaskHandle xUDPTaskCreate(int sock, struct sockaddr *to, int16_t inQueueSize
     // 任务优先级
     newObject->uxPriority = uxPriority;
     newObject->xMPool = xMPool;
+
+    if(to!=NULL)
+    {
+        newObject->to = *to;
+    }
     // 默认回调
     newObject->RecCallback = xUDPRecCallBack;
+
+    newObject->friend = NULL;
 
     return newObject;
 }
@@ -39,7 +46,7 @@ void xUDPTaskSetRemote(xUDPTaskHandle xUDPTask, struct sockaddr_in *to)
     xUDPTask->to = *to;
 }
 
-void xUDPTaskSend(xUDPTaskHandle xUDPTask, const xMemoryBlockHandle xMB)
+void inline xUDPTaskSend(xUDPTaskHandle xUDPTask, const xMemoryBlockHandle xMB)
 {
     xQueueSend(xUDPTask->send_queue, &xMB, 0);
 }
@@ -49,25 +56,29 @@ void xUDPTaskSetRecCallback(xUDPTaskHandle xUDPTask, xUDPRecCallBack_t xUDPRCb)
     xUDPTask->RecCallback = xUDPRCb;
 }
 
+void xUDPTaskSetFriend(xUDPTaskHandle xUDPTask, void* friend)
+{
+    xUDPTask->friend = friend;
+}
+
 /* UDP主要任务，接收数据，然后处理，通过任务实现异步 */
 static void udp_rec_task(void *parameter)
 {
     ssize_t len;
-    struct sockaddr_in sourceAddr;
-    socklen_t socklen = sizeof(sourceAddr);
     xUDPTaskHandle object = (xUDPTaskHandle)parameter;
+    socklen_t socklen = sizeof(object->from);
     while (1)
     {
         xMemoryBlockHandle xMB = xMemoryBlockGet(object->xMPool, 5 / portTICK_RATE_MS);
         if (!xMB) continue;
-        len = recvfrom(object->hsocket, xMB->mem, object->xMPool->buf_size, 0, (struct sockaddr *)&sourceAddr, &socklen);
+        len = recvfrom(object->hsocket, xMB->mem, object->xMPool->buf_size, 0, (struct sockaddr *)&object->from, &socklen);
         if (len >= object->xMPool->buf_size - 1)
         { // is full?
             xMemoryBlockRelease(object->xMPool, xMB);
             continue;
         }
         xMB->vaild_size = len;
-        object->RecCallback(object, (void *)xMB, &sourceAddr); // 重写这个函数
+        object->RecCallback(object, (void *)xMB, object->friend); // 重写这个函数
         // 不要在此释放内存，考虑到rec_callback可能是异步
     }
     vTaskDelete(NULL);
@@ -90,7 +101,7 @@ static void udp_send_task(void *parameter)
     vTaskDelete(NULL);
 }
 
-static void xUDPRecCallBack(xUDPTaskHandle xUDPTask, void *data, struct sockaddr_in *to)
+static void xUDPRecCallBack(xUDPTaskHandle xUDPTask, void *data, void *friend)
 {
     // DO NOTHING
 }

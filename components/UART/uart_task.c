@@ -1,8 +1,8 @@
 #include "uart_task.h"
 
-static void udp_rec_task(void *parameter);
-static void udp_send_task(void *parameter);
-static void xUARTRecCallBack(xUARTTaskHandle xUARTTask, void *data);
+static void uart_rec_task(void *parameter);
+static void uart_send_task(void *parameter);
+static void xUARTRecCallBack(xUARTTaskHandle xUARTTask, void *data, void* friend);
 
 xUARTTaskHandle xUARTTaskCreate(uart_port_t p, int16_t inQueueSize, int16_t outQueueSize,
                                 UBaseType_t uxPriority, xMemoryPoolHandle xMPool)
@@ -24,10 +24,11 @@ xUARTTaskHandle xUARTTaskCreate(uart_port_t p, int16_t inQueueSize, int16_t outQ
     // 默认回调
     newObject->RecCallback = xUARTRecCallBack;
 
+    newObject->friend = NULL;
     return newObject;
 }
 
-void xUARTTaskSend(xUARTTaskHandle xUARTTask, const xMemoryBlockHandle xMB)
+void inline xUARTTaskSend(xUARTTaskHandle xUARTTask, const xMemoryBlockHandle xMB)
 {
     xQueueSend(xUARTTask->send_queue, &xMB, 0);
 }
@@ -39,21 +40,22 @@ void xUARTTaskSetRecCallback(xUARTTaskHandle xUARTTask, xUARTRecCallBack_t xUART
 
 void xUARTTaskStart(xUARTTaskHandle xUARTTask)
 {
-    xUARTTask->rec_task_handle = xTaskCreate(udp_rec_task, xUARTTask->rec_task_name,
+    xUARTTask->rec_task_handle = xTaskCreate(uart_rec_task, xUARTTask->rec_task_name,
                                              2048, (void *)xUARTTask, xUARTTask->uxPriority, NULL);
-    xUARTTask->send_task_handle = xTaskCreate(udp_send_task, xUARTTask->send_task_name,
+    xUARTTask->send_task_handle = xTaskCreate(uart_send_task, xUARTTask->send_task_name,
                                               2048, (void *)xUARTTask, xUARTTask->uxPriority, NULL);
 }
 
 /* UART主要任务，接收数据，然后处理，通过任务实现异步 */
-static void udp_rec_task(void *parameter)
+static void uart_rec_task(void *parameter)
 {
     ssize_t len;
     xUARTTaskHandle object = (xUARTTaskHandle)parameter;
     while (1)
     {
         xMemoryBlockHandle xMB = xMemoryBlockGet(object->xMPool, 5 / portTICK_RATE_MS);
-        if (!xMB) continue;
+        if (!xMB)
+            continue;
 
         len = uart_read_bytes(object->unum, xMB->mem, object->xMPool->buf_size, 5 / portTICK_RATE_MS);
         if (len >= object->xMPool->buf_size - 1)
@@ -61,14 +63,21 @@ static void udp_rec_task(void *parameter)
             xMemoryBlockRelease(object->xMPool, xMB);
             continue;
         }
-        xMB->vaild_size = len;
-        object->RecCallback(object, (void *)xMB); // 重写这个函数
-        // 不要在此释放内存，考虑到rec_callback可能是异步
+        else if(len > 0)
+        {
+            xMB->vaild_size = len;
+            object->RecCallback(object, (void *)xMB, object->friend);
+        }
+        else
+        {
+            xMemoryBlockRelease(object->xMPool, xMB);
+        }
+        
     }
     vTaskDelete(NULL);
 }
 
-static void udp_send_task(void *parameter)
+static void uart_send_task(void *parameter)
 {
     xUARTTaskHandle object = (xUARTTaskHandle)parameter;
     BaseType_t is_success;
@@ -85,7 +94,7 @@ static void udp_send_task(void *parameter)
     vTaskDelete(NULL);
 }
 
-void xUARTRecCallBack(xUARTTaskHandle xUARTTask, void *data)
+void xUARTRecCallBack(xUARTTaskHandle xUARTTask, void *data, void* friend)
 {
     // DO NO THING
 }
